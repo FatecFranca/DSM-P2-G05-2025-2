@@ -1,20 +1,20 @@
 import express from 'express';
 import puppeteer from 'puppeteer';
 import cors from 'cors';
-import mysql from 'mysql2/promise'; // Biblioteca nova para MySQL
-import bcrypt from 'bcrypt';        // Biblioteca nova para criptografar senhas
-import dotenv from 'dotenv';        // Para ler o arquivo .env
+import mysql from 'mysql2/promise';
+import bcrypt from 'bcrypt';
+import dotenv from 'dotenv';
 
-dotenv.config(); // Carrega as configurações do arquivo .env
+dotenv.config();
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000; // Usa a porta do Render ou 3000 local
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); 
 
-// --- CONFIGURAÇÃO DO BANCO DE DADOS (COM SSL) ---
+// --- CONFIGURAÇÃO DO BANCO DE DADOS ---
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -24,7 +24,7 @@ const pool = mysql.createPool({
     connectionLimit: 10,
     queueLimit: 0,
     ssl: {
-        rejectUnauthorized: false // Permite conexão segura com TiDB
+        rejectUnauthorized: false // Necessário para TiDB Cloud
     }
 });
 
@@ -42,22 +42,16 @@ pool.getConnection()
 
 app.post('/register', async (req, res) => {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
-    }
+    if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
 
     try {
         const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
-        if (users.length > 0) {
-            return res.status(409).json({ error: 'Usuário já cadastrado.' });
-        }
+        if (users.length > 0) return res.status(409).json({ error: 'Usuário já cadastrado.' });
 
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(password, salt);
 
         await pool.execute('INSERT INTO users (email, password_hash) VALUES (?, ?)', [email, hash]);
-
         res.status(201).json({ message: 'Conta criada com sucesso!' });
     } catch (error) {
         console.error('Erro no registro:', error);
@@ -67,35 +61,20 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
-
     try {
         const [users] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
-        
-        if (users.length === 0) {
-            return res.status(401).json({ error: 'Email ou senha incorretos.' });
-        }
+        if (users.length === 0) return res.status(401).json({ error: 'Email ou senha incorretos.' });
 
         const user = users[0];
         const validPassword = await bcrypt.compare(password, user.password_hash);
+        if (!validPassword) return res.status(401).json({ error: 'Email ou senha incorretos.' });
 
-        if (!validPassword) {
-            return res.status(401).json({ error: 'Email ou senha incorretos.' });
-        }
-
-        res.json({
-            message: 'Login realizado!',
-            user: {
-                id: user.id,
-                email: user.email
-            }
-        });
-
+        res.json({ message: 'Login realizado!', user: { id: user.id, email: user.email } });
     } catch (error) {
         console.error('Erro no login:', error);
         res.status(500).json({ error: 'Erro interno ao fazer login.' });
     }
 });
-
 
 // --- CONFIGURAÇÕES DO ROBÔ (PUPPETEER) ---
 
@@ -110,23 +89,28 @@ const G_CRESCIMENTO_FALLBACK = 5.0;
 const GRAHAM_UNRELIABLE_SECTORS = new Set(['Tecnologia da Informação']);
 const GRAHAM_UNRELIABLE_SEGMENTS = new Set(['Software e Dados']);
 
-// --- FUNÇÃO DO BROWSER OTIMIZADA PARA RENDER (AQUI ESTÁ A CORREÇÃO DO ERRO 500) ---
+// --- FUNÇÃO DO BROWSER CORRIGIDA ---
 async function getBrowser() {
+    // Se o browser desconectou (crash), força recriação
+    if (browser && !browser.isConnected()) {
+        try { await browser.close(); } catch(e) {}
+        browser = null;
+    }
+
     if (!browser) {
         browser = await puppeteer.launch({
             headless: "new",
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Crítico: evita erro de memória compartilhada no Docker/Render
+                '--disable-dev-shm-usage', // Importante para o Render
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--single-process', // Crítico: reduz drasticamente o uso de RAM
+                // '--single-process', // REMOVIDO: Causa erro no Windows
                 '--disable-gpu'
             ],
-            // Se estiver no Render, usa o caminho do executável que configuramos nas variáveis
-            // Se estiver no seu PC, usa o padrão (null)
+            // No Render, usa o caminho configurado (se houver). Localmente, deixa null.
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
             defaultViewport: null,
         });
@@ -137,9 +121,7 @@ async function getBrowser() {
 // --- FUNÇÕES AUXILIARES ---
 
 function strToNumber(str) {
-    if (str === null || str === undefined || typeof str !== 'string' || str.trim() === '-' || str.trim() === '') {
-        return null;
-    }
+    if (!str || typeof str !== 'string' || str.trim() === '-' || str.trim() === '') return null;
     const cleaned = str.replace(/R\$\s?/, '').replace(/\./g, '').replace(',', '.').replace('%', '').trim();
     const num = parseFloat(cleaned);
     return isNaN(num) ? null : num;
@@ -188,13 +170,11 @@ async function scrapeInvestidor10(browser, ticker) {
     let page;
     try {
         page = await browser.newPage();
-        // Timeout aumentado para garantir carregamento em conexões lentas
         const url = `https://investidor10.com.br/acoes/${ticker.toLowerCase()}/`;
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await Promise.all([
              page.waitForSelector('#cards-ticker', { timeout: 30000 }),
-             page.waitForSelector('.dy-history', { timeout: 30000 }),
              page.waitForSelector('#table-indicators', { timeout: 30000 })
         ]);
         
