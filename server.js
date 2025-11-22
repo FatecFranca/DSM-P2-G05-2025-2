@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); 
 
-// --- CONFIGURAÇÃO DO BANCO DE DADOS (NOVA) ---
+// --- CONFIGURAÇÃO DO BANCO DE DADOS (ATUALIZADA COM SSL) ---
 // Cria uma "piscina" de conexões para ser mais rápido
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
@@ -23,7 +23,10 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME || 'investidor_app',
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
+    queueLimit: 0,
+    ssl: {
+        rejectUnauthorized: false // <--- A CORREÇÃO ESTÁ AQUI! (Permite conexão segura com TiDB)
+    }
 });
 
 // Testa a conexão ao iniciar
@@ -36,7 +39,7 @@ pool.getConnection()
         console.error('❌ Erro ao conectar no MySQL:', err.message);
     });
 
-// --- ROTAS DE AUTENTICAÇÃO (NOVAS) ---
+// --- ROTAS DE AUTENTICAÇÃO ---
 
 // Rota de Registro
 app.post('/register', async (req, res) => {
@@ -104,7 +107,7 @@ app.post('/login', async (req, res) => {
 });
 
 
-// --- CÓDIGO ORIGINAL DE SCRAPING (MANTIDO ABAIXO) ---
+// --- CÓDIGO ORIGINAL DE SCRAPING (MANTIDO) ---
 
 let browser;
 
