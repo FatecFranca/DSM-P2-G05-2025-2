@@ -110,7 +110,7 @@ const G_CRESCIMENTO_FALLBACK = 5.0;
 const GRAHAM_UNRELIABLE_SECTORS = new Set(['Tecnologia da Informação']);
 const GRAHAM_UNRELIABLE_SEGMENTS = new Set(['Software e Dados']);
 
-// --- FUNÇÃO DO BROWSER OTIMIZADA PARA RENDER ---
+// --- FUNÇÃO DO BROWSER OTIMIZADA PARA RENDER (AQUI ESTÁ A CORREÇÃO DO ERRO 500) ---
 async function getBrowser() {
     if (!browser) {
         browser = await puppeteer.launch({
@@ -118,14 +118,15 @@ async function getBrowser() {
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage', // Crítico para evitar estouro de memória no Render
+                '--disable-dev-shm-usage', // Crítico: evita erro de memória compartilhada no Docker/Render
                 '--disable-accelerated-2d-canvas',
                 '--no-first-run',
                 '--no-zygote',
-                '--single-process', // Reduz consumo de RAM
+                '--single-process', // Crítico: reduz drasticamente o uso de RAM
                 '--disable-gpu'
             ],
-            // Se estiver no Render, usa o caminho do executável configurado nas variáveis
+            // Se estiver no Render, usa o caminho do executável que configuramos nas variáveis
+            // Se estiver no seu PC, usa o padrão (null)
             executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null,
             defaultViewport: null,
         });
@@ -187,14 +188,14 @@ async function scrapeInvestidor10(browser, ticker) {
     let page;
     try {
         page = await browser.newPage();
-        // Timeout aumentado para conexões lentas
+        // Timeout aumentado para garantir carregamento em conexões lentas
         const url = `https://investidor10.com.br/acoes/${ticker.toLowerCase()}/`;
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
         await Promise.all([
-             page.waitForSelector('#cards-ticker', { timeout: 45000 }),
-             page.waitForSelector('.dy-history', { timeout: 45000 }),
-             page.waitForSelector('#table-indicators', { timeout: 45000 })
+             page.waitForSelector('#cards-ticker', { timeout: 30000 }),
+             page.waitForSelector('.dy-history', { timeout: 30000 }),
+             page.waitForSelector('#table-indicators', { timeout: 30000 })
         ]);
         
         const data = await page.evaluate(() => {
@@ -264,7 +265,6 @@ async function scrapeXpi(browser, ticker) {
     let page;
     try {
         page = await browser.newPage();
-        // User Agent para evitar bloqueios
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
         const url = `https://conteudos.xpi.com.br/acoes/${ticker.toLowerCase()}/`;
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 45000 });
