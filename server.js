@@ -65,6 +65,10 @@ app.post('/login', async (req, res) => {
 // --- PUPPETEER INTELIGENTE ---
 let browser;
 
+// Configurações Graham
+const GRAHAM_UNRELIABLE_SECTORS = new Set(['Tecnologia da Informação']);
+const GRAHAM_UNRELIABLE_SEGMENTS = new Set(['Software e Dados']);
+
 async function getBrowser() {
     if (browser && !browser.isConnected()) {
         try { await browser.close(); } catch(e) {}
