@@ -66,8 +66,8 @@ app.post('/login', async (req, res) => {
 let browser;
 
 // Configurações Graham
-const GRAHAM_UNRELIABLE_SECTORS = new Set(['Tecnologia da Informação']);
-const GRAHAM_UNRELIABLE_SEGMENTS = new Set(['Software e Dados']);
+const GRAHAM_UNRELIABLE_SECTORS = new Set(['Tecnologia da Informação', 'Financeiro e Outros']);
+const GRAHAM_UNRELIABLE_SEGMENTS = new Set(['Software e Dados', 'Bancos']);
 
 async function getBrowser() {
     if (browser && !browser.isConnected()) {
@@ -127,7 +127,7 @@ function classifyIndicator(indicator, valueStr) {
         case 'roic': return value >= 10 ? 'good' : (value < 5 ? 'bad' : 'neutral');
         case 'margemLiquida': return value >= 15 ? 'good' : (value < 5 ? 'bad' : 'neutral');
         case 'margemEbitda': return value >= 20 ? 'good' : (value < 10 ? 'bad' : 'neutral');
-        case 'dividaLiquidaEbit': return value <= 1.0 ? 'good' : (value > 3.0 ? 'bad' : 'neutral');
+        // Removidos lógica de Dívida Líquida/EBIT
         case 'dividaLiquidaEbitda': return value <= 2.0 ? 'good' : (value > 4.0 ? 'bad' : 'neutral');
         case 'liquidezCorrente': return value >= 1.5 ? 'good' : (value < 1.0 ? 'bad' : 'neutral');
         case 'payout': return value >= 25 && value <= 75 ? 'good' : (value > 100 ? 'bad' : 'neutral');
@@ -159,7 +159,6 @@ async function scrapeInvestidor10(browser, ticker) {
     try {
         page = await browser.newPage();
         
-        // Otimização de Memória (Bloqueia imagens e fontes)
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             const type = req.resourceType();
@@ -173,25 +172,20 @@ async function scrapeInvestidor10(browser, ticker) {
         console.log(`🔍 Buscando ${ticker}...`);
         await page.goto(`https://investidor10.com.br/acoes/${ticker.toLowerCase()}/`, { waitUntil: 'domcontentloaded', timeout: 60000 });
         
-        // Espera elementos carregarem (mesmo sem CSS)
         await Promise.all([
              page.waitForSelector('#cards-ticker', { timeout: 30000 }).catch(() => {}),
              page.waitForSelector('#table-indicators', { timeout: 30000 }).catch(() => {})
         ]);
 
         const data = await page.evaluate(() => {
-            // Função auxiliar para pegar texto de cards do topo
             const getTextFromTickerCard = (cardClass) => document.querySelector(`#cards-ticker ._card.${cardClass} ._card-body span`)?.innerText.trim() || null;
             
-            // Função auxiliar inteligente para buscar na tabela de indicadores
             const findCellText = (label) => {
                 const normalizedLabel = label.toLowerCase().trim();
-                // Tenta achar na tabela principal
                 let spans = Array.from(document.querySelectorAll('#table-indicators .cell span:first-child'));
                 let found = spans.find(s => (s.innerText || '').trim().toLowerCase() === normalizedLabel);
                 if (found) return found?.closest('.cell')?.querySelector('.value span')?.innerText.trim() || null;
                 
-                // Tenta achar em outros lugares da página (fallback)
                 spans = Array.from(document.querySelectorAll('.cell span:first-child'));
                 found = spans.find(s => (s.innerText || '').trim().toLowerCase() === normalizedLabel);
                 if (found) return found?.closest('.cell')?.querySelector('.value span, .value')?.innerText.trim() || null;
@@ -220,16 +214,16 @@ async function scrapeInvestidor10(browser, ticker) {
                 lpa: findCellText('lpa'),
                 roe: findCellText('roe'),
                 margemLiquida: findCellText('margem líquida'),
-                dividaLiquidaEbit: findCellText('dívida líquida / ebit'),
+                // dividaLiquidaEbit REMOVIDO
                 cagrLucros: findCellText('cagr lucros 5 anos'),
                 setor: findLinkedCellText('setor'),
                 segmento: findLinkedCellText('segmento'),
                 dy5Anos: findDyMedio5Anos(),
-                evEbitda: findCellText('ev/ebitda'),
-                pEbitda: findCellText('p/ebitda'),
-                pAtivo: findCellText('p/ativo'),
+                // evEbitda REMOVIDO
+                // pEbitda REMOVIDO
+                // pAtivo REMOVIDO
                 margemBruta: findCellText('margem bruta'),
-                margemEbit: findCellText('margem ebit'),
+                // margemEbit REMOVIDO
                 margemEbitda: findCellText('margem ebitda'),
                 roic: findCellText('roic'),
                 dividaLiquidaEbitda: findCellText('dívida líquida / ebitda'),
@@ -249,11 +243,10 @@ async function scrapeInvestidor10(browser, ticker) {
     }
 }
 
-// Funções XPI e BTG (Mantidas simplificadas para evitar bloqueios extras, mas funcionais se implementadas)
 async function scrapeXpi(browser, ticker) { return {}; }
 async function scrapeBtgPactual(browser, ticker) { return {}; }
 
-// --- ROTA BUSCAR ---
+// --- ROTA BUSCAR AÇÕES ---
 app.post('/buscar', async (req, res) => {
     const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: 'Ticker vazio' });
@@ -262,20 +255,17 @@ app.post('/buscar', async (req, res) => {
 
     try {
         const browser = await getBrowser();
-        // Executa scraping em paralelo (se adicionar XPI/BTG no futuro, já está pronto)
         const results = await Promise.allSettled([
             scrapeInvestidor10(browser, ticker)
         ]);
         
         const i10Data = results[0].status === 'fulfilled' ? results[0].value : {};
 
-        // Se não achou cotação, provavelmente a página não carregou ou ticker é inválido
         if (!i10Data || !i10Data.cotacao || i10Data.cotacao === '-') {
             console.log("Dados não encontrados ou incompletos.");
             return res.status(404).json({ error: 'Ativo não encontrado ou erro ao ler página.' });
         }
 
-        // --- CÁLCULOS DE VALUATION ---
         const cotacaoNum = strToNumber(i10Data.cotacao);
         const vpaNum = strToNumber(i10Data.vpa);
         const lpaNum = strToNumber(i10Data.lpa);
@@ -285,18 +275,16 @@ app.post('/buscar', async (req, res) => {
         const g = (cagrLucrosNum !== null && cagrLucrosNum > 0) ? cagrLucrosNum : 5.0;
         
         const valorJustoGraham = (vpaNum && lpaNum && lpaNum > 0 && vpaNum > 0) ? Math.sqrt(22.5 * lpaNum * vpaNum) : null;
-        const precoTetoBazin = (cotacaoNum && dyNum && dyNum > 0) ? (cotacaoNum * (dyNum / 100)) / 0.06 : null; // Usando 6% como base padrão Bazin
+        const precoTetoBazin = (cotacaoNum && dyNum && dyNum > 0) ? (cotacaoNum * (dyNum / 100)) / 0.06 : null; 
         const precoTetoBazin5Y = (cotacaoNum && dy5AnosNum && dy5AnosNum > 0) ? (cotacaoNum * (dy5AnosNum / 100)) / 0.06 : null;
         
-        // Fórmula de Graham Revisada (Ben Graham Number)
-        const valorRevisadoGraham = (lpaNum && lpaNum > 0) ? (lpaNum * (8.5 + 2 * g) * 4.4) / 5.5 : null; // Valores de referência comuns (AAA Bond)
+        const valorRevisadoGraham = (lpaNum && lpaNum > 0) ? (lpaNum * (8.5 + 2 * g) * 4.4) / 5.5 : null;
 
         const grahamWarning = (
-            GRAHAM_UNRELIABLE_SECTORS.has(i10Data.setor) ||
-            GRAHAM_UNRELIABLE_SEGMENTS.has(i10Data.segmento)
+            (i10Data.setor && GRAHAM_UNRELIABLE_SECTORS.has(i10Data.setor)) ||
+            (i10Data.segmento && GRAHAM_UNRELIABLE_SEGMENTS.has(i10Data.segmento))
         ) ? "Graham pode ser impreciso p/ setor" : null;
 
-        // Helper para formatar resposta
         const createIndicatorResponse = (key, valueStr, classify = false) => {
              const classificationClass = classify ? classifyIndicator(key, valueStr) : 'neutral';
              return { value: valueStr || '-', class: classificationClass };
@@ -308,26 +296,26 @@ app.post('/buscar', async (req, res) => {
             cotacao: createIndicatorResponse('cotacao', i10Data.cotacao),
             pl: createIndicatorResponse('pl', i10Data.pl, true),
             pvp: createIndicatorResponse('pvp', i10Data.pvp, true),
-            pebitda: createIndicatorResponse('pEbitda', i10Data.pEbitda), // Adicionado
-            evebitda: createIndicatorResponse('evEbitda', i10Data.evEbitda), // Adicionado
-            pativo: createIndicatorResponse('pAtivo', i10Data.pAtivo), // Adicionado
+            // pebitda REMOVIDO
+            // evebitda REMOVIDO
+            // pativo REMOVIDO
             
             // Proventos
             dy: createIndicatorResponse('dy', i10Data.dy, true),
-            dy5Anos: createIndicatorResponse('dy5Anos', i10Data.dy5Anos, true), // Adicionado
-            payout: createIndicatorResponse('payout', i10Data.payout, true), // Adicionado
+            dy5Anos: createIndicatorResponse('dy5Anos', i10Data.dy5Anos, true),
+            payout: createIndicatorResponse('payout', i10Data.payout, true),
 
             // Rentabilidade
             roe: createIndicatorResponse('roe', i10Data.roe, true),
             roic: createIndicatorResponse('roic', i10Data.roic, true),
-            roa: createIndicatorResponse('roa', i10Data.roa), // Adicionado
-            margemBruta: createIndicatorResponse('margemBruta', i10Data.margemBruta), // Adicionado
-            margemEbit: createIndicatorResponse('margemEbit', i10Data.margemEbit), // Adicionado
-            margemEbitda: createIndicatorResponse('margemEbitda', i10Data.margemEbitda, true), // Adicionado
+            roa: createIndicatorResponse('roa', i10Data.roa),
+            margemBruta: createIndicatorResponse('margemBruta', i10Data.margemBruta),
+            // margemEbit REMOVIDO
+            margemEbitda: createIndicatorResponse('margemEbitda', i10Data.margemEbitda, true),
             margemLiquida: createIndicatorResponse('margemLiquida', i10Data.margemLiquida, true),
 
             // Dívida e Liquidez
-            dividaLiquidaEbit: createIndicatorResponse('dividaLiquidaEbit', i10Data.dividaLiquidaEbit, true),
+            // dividaLiquidaEbit REMOVIDO
             dividaLiquidaEbitda: createIndicatorResponse('dividaLiquidaEbitda', i10Data.dividaLiquidaEbitda, true),
             dividaLiquidaPatrimonio: createIndicatorResponse('dividaLiquidaPatrimonio', i10Data.dividaLiquidaPatrimonio),
             liquidezCorrente: createIndicatorResponse('liquidezCorrente', i10Data.liquidezCorrente, true),
@@ -345,7 +333,7 @@ app.post('/buscar', async (req, res) => {
             valorRevisado: classifyValuation(i10Data.cotacao, valorRevisadoGraham),
             grahamWarning: grahamWarning,
             
-            // Placeholders para corretoras (mantendo estrutura)
+            // Placeholders
             xpiRecomendacao: { value: '-', class: 'neutral' },
             xpiPrecoAlvo: { value: '-', class: 'neutral' },
             xpiPotencial: { value: '-', class: 'neutral' },
@@ -362,7 +350,7 @@ app.post('/buscar', async (req, res) => {
     }
 });
 
-// --- ROTA FIIs (Mantida funcional) ---
+// --- ROTA FIIs ---
 app.post('/buscar-fii', async (req, res) => {
      const { ticker } = req.body;
     if (!ticker) return res.status(400).json({ error: 'Ticker não informado' });
@@ -371,7 +359,6 @@ app.post('/buscar-fii', async (req, res) => {
         const browser = await getBrowser();
         page = await browser.newPage();
         
-        // Bloqueia imagens para FIIs também
         await page.setRequestInterception(true);
         page.on('request', (req) => {
             if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
@@ -382,8 +369,6 @@ app.post('/buscar-fii', async (req, res) => {
         });
 
         await page.goto(`https://investidor10.com.br/fiis/${ticker.toLowerCase()}/`, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        
-        // Espera carregamento (fail-safe)
         try { await page.waitForSelector('#cards-ticker', { timeout: 20000 }); } catch (e) {}
 
         const rawData = await page.evaluate(() => {
@@ -401,7 +386,6 @@ app.post('/buscar-fii', async (req, res) => {
                 if (foundSpan) return foundSpan.closest('.cell')?.querySelector('.value span, .value')?.innerText.trim() || null;
                 return null;
             };
-            
             return {
                 cotacao: getTextFromTickerCard('cotacao'), 
                 pvp: getTextFromTickerCard('vp'), 
@@ -418,6 +402,7 @@ app.post('/buscar-fii', async (req, res) => {
                 tipoFundo: findTextByLabel('tipo de fundo'),
                 tipoGestao: findTextByLabel('tipo de gestão'),
                 taxaAdm: findTextByLabel('taxa de administração'),
+                // valorMercado REMOVIDO
             };
         });
 
@@ -449,6 +434,7 @@ app.post('/buscar-fii', async (req, res) => {
             pvp: { value: rawData.pvp || '-', class: pvpClass },
             dy: { value: rawData.dy || '-', class: 'neutral' }, 
             liquidezDiaria: { value: rawData.liquidezDiaria || '-', class: 'neutral' },
+            // valorMercado REMOVIDO
             ultimoRendimento: { value: rawData.ultimoRendimento || '-', class: 'neutral' },
             y1m: { value: rawData.y1m || '-', class: 'neutral' }, 
             ebn: { value: String(ebn), class: 'neutral' },

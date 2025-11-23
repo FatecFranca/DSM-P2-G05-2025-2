@@ -132,7 +132,7 @@
                     </div>`;
             }
 
-            // Seções das Corretoras
+            // Seções das Corretoras (Só aparecem se tiver dados)
             const xpiSection = (dados.xpiRecomendacao && dados.xpiRecomendacao.value && dados.xpiRecomendacao.value !== '-') ? `
                 <h3>Humor da Corretora (XP)</h3>
                 <div class="results-grid">
@@ -161,9 +161,7 @@
                         ${createCard('Cotação Atual', dados.cotacao)}
                         ${createCard('P/L', dados.pl)}
                         ${createCard('P/VP', dados.pvp)}
-                        ${createCard('P/EBITDA', dados.pEbitda)}
-                        ${createCard('EV/EBITDA', dados.evEbitda)}
-                        ${createCard('P/Ativo', dados.pAtivo)}
+                        <!-- Removidos: P/EBITDA, EV/EBITDA, P/Ativo -->
                     </div>
 
                     <h3>Dividendos & Proventos</h3>
@@ -179,7 +177,7 @@
                         ${createCard('ROIC', dados.roic)}
                         ${createCard('ROA', dados.roa)}
                         ${createCard('Margem Bruta', dados.margemBruta)}
-                        ${createCard('Margem EBIT', dados.margemEbit)}
+                        <!-- Removido: Margem EBIT -->
                         ${createCard('Margem EBITDA', dados.margemEbitda)}
                         ${createCard('Margem Líquida', dados.margemLiquida)}
                     </div>
@@ -188,7 +186,7 @@
                      <div class="results-grid">
                          ${createCard('Dív. Líq./Patrimônio', dados.dividaLiquidaPatrimonio)}
                          ${createCard('Dív. Líq./EBITDA', dados.dividaLiquidaEbitda)}
-                         ${createCard('Dív. Líq./EBIT', dados.dividaLiquidaEbit)}
+                         <!-- Removido: Dív. Líq./EBIT -->
                          ${createCard('Liquidez Corrente', dados.liquidezCorrente)}
                      </div>
 
