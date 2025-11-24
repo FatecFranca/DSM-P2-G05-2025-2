@@ -1,4 +1,4 @@
-Fatec
+Grupo 05 do 2o semestre DSM - 2025-2 - Invista+
 
 [README_InvistaMais.txt](https://github.com/user-attachments/files/23733704/README_InvistaMais.txt)
 Proposta do projeto: Facilitar a vida do investidor iniciante com um software capaz de reunir as informações essenciais de Ações e Fundos Imobiliários, além de uma página para explicar os conceitos Fundamentais de Investimento, explicando objetivamente ao usuário informações imprescindíveis para entender os tópicos: (O que é uma Ação?, O que são Dividendos?, O que é Renda Variável?)
