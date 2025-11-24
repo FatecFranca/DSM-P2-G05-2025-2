@@ -12,5 +12,7 @@ Forma 1: Botão direito do mouse (botão secundário) em cima da Pasta (Invista_
 
 Forma 2: Acesse o link ("https://invistamais.onrender.com") -> Se não tiver uma conta, clicar no botão (Criar agora) -> Preencher os campos com E-mail e Senha, voltar para a página de Login clicando em (Fazer Login) -> preencher novamente os campos agora com o Email e senha já cadastrados -> Digite o ticker da ação desejada (ex: Petr4) -> Aguarde o Software buscar as informações -> Consulte o resultado da busca, para FII´s procedimento é igual -> Digite o ticker do FII desejado (ex: MXRF11) -> Aguarde o Software buscar as informações -> Consulte o resultado da busca, Acesse a página ("Aprenda") para saber mais.
 
+Link do video mostrando o programa sendo executado: https://youtu.be/Fai2amg8Tkc
+
 
 Nomes: Vitor Faccini da Cruz Morais, Thiago Abraão, Matheus Junior Marques 
