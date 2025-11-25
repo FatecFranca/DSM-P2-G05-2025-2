@@ -15,4 +15,4 @@ Forma 2: Acesse o link ("https://invistamais.onrender.com") -> Se não tiver uma
 Link do video mostrando o programa sendo executado: https://youtu.be/Fai2amg8Tkc
 
 
-Nomes: Vitor Faccini da Cruz Morais, Thiago Abraão, Matheus Junior Marques 
+Nomes: Vitor Faccini da Cruz Morais, Thiago Abraão, Matheus Junior Marques.
